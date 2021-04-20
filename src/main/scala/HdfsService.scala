@@ -3,6 +3,7 @@ import org.apache.hadoop.fs._
 import org.apache.hadoop.io.IOUtils
 
 import java.net.URI
+import scala.util.Using
 
 object HdfsService {
   private val configuration = new Configuration()
@@ -37,22 +38,22 @@ object HdfsService {
   }
 
   private def copyAndMerge(sourceDirectory: Path, destinationFile: Path): Unit = {
-    val outputFile = fileSystem.create(destinationFile)
     val statuses = fileSystem
       .listStatus(sourceDirectory, partFileFilter)
       .filter(_.getLen > 0)
       .sortBy(_.getPath.getName)
-
-    statuses
-      .zipWithIndex
-      .collect(tuple => {
-        if(tuple._2 < statuses.length - 1) {
-          writeFile(outputFile, tuple._1, '\n')
-        } else {
-          writeFile(outputFile, tuple._1)
-        }
-      })
-    outputFile.close()
+    Using(fileSystem.create(destinationFile)) {
+      outputFile =>
+        statuses
+          .zipWithIndex
+          .collect(tuple => {
+            if (tuple._2 < statuses.length - 1) {
+              writeFile(outputFile, tuple._1, '\n')
+            } else {
+              writeFile(outputFile, tuple._1)
+            }
+          })
+    }
   }
 
   private def createFolder(root: String, folderPath: String): Path = {
